@@ -1,0 +1,27 @@
+services:
+  app:
+    build: ./habits-tracker
+    ports:
+       - 8084:8080
+    environment:
+      DATABASE_URL: postgres://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:5432/${DB_NAME}?sslmode=disable
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_PASSWORD: "${DB_PASSWORD}"
+      POSTGRES_USER: "${DB_USER}"
+      POSTGRES_DB: "${DB_NAME}"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - ./habits-tracker/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "sh -c 'pg_isready -U ${DB_USER} -d ${DB_NAME}'"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+volumes:
+  pg_data:
