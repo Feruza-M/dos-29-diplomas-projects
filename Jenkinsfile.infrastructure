@@ -18,7 +18,10 @@ pipeline {
         stage('Terraform Init') {
             steps {
                 dir('terraform') {
-                    sh 'terraform init -reconfigure -input=false'
+                    sh '''
+		    rm -rf .terraform
+		    terraform init -reconfigure -input=false
+		    '''
                 }
             }
         }
