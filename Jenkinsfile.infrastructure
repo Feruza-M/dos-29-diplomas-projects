@@ -1,0 +1,67 @@
+pipeline {
+    agent any
+
+    environment {
+        TF_IN_AUTOMATION = 'true'
+        TF_VAR_bucket_name = 'feruza-dos29-project-2026-001'
+        TF_VAR_key_name = 'all-in-one'
+    }
+
+    stages {
+
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Terraform Init') {
+            steps {
+                dir('terraform') {
+                    sh 'terraform init -input=false'
+                }
+            }
+        }
+
+        stage('Terraform Lint') {
+            steps {
+                dir('terraform') {
+                    sh 'terraform fmt -check'
+                    sh 'terraform validate'
+                }
+            }
+        }
+
+        stage('Security Scan') {
+            steps {
+                sh 'trivy config terraform/'
+            }
+        }
+
+        stage('Terraform Plan') {
+            steps {
+                dir('terraform') {
+                    sh 'terraform plan -input=false -out=tfplan'
+                }
+            }
+        }
+
+        stage('Terraform Apply') {
+            steps {
+                dir('terraform') {
+                    sh 'terraform apply -input=false -auto-approve tfplan'
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            echo 'Infrastructure pipeline completed successfully'
+        }
+
+        failure {
+            echo 'Infrastructure pipeline failed'
+        }
+    }
+}

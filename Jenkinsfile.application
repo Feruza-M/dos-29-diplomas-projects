@@ -1,0 +1,41 @@
+pipeline {
+    agent any
+
+    stages {
+
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Build') {
+            steps {
+                sh 'docker build -t load-test-analyzer:${BUILD_NUMBER} .'
+            }
+        }
+
+        stage('Security Scan') {
+            steps {
+                sh '''
+                trivy image \
+                --severity HIGH,CRITICAL \
+                --exit-code 1 \
+                load-test-analyzer:${BUILD_NUMBER}
+                '''
+            }
+        }
+
+        stage('Deploy') {
+            steps {
+                echo 'Deploy to application server'
+            }
+        }
+
+        stage('Health Check') {
+            steps {
+                echo 'Check application'
+            }
+        }
+    }
+}

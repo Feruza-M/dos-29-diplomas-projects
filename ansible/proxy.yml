@@ -1,0 +1,25 @@
+---
+- name: Configure proxy server
+  hosts: proxy
+  become: true
+
+  tasks:
+    - name: Update apt
+      apt:
+        update_cache: true
+
+    - name: Install nginx
+      apt:
+        name: nginx
+        state: present
+
+    - name: Copy nginx config
+      template:
+        src: templates/nginx.conf.j2
+        dest: /etc/nginx/sites-available/default
+
+    - name: Restart nginx
+      systemd:
+        name: nginx
+        state: restarted
+        enabled: true

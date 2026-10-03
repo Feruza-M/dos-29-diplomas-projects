@@ -1,0 +1,16 @@
+# Terraform
+terraform/.terraform/
+terraform/*.tfstate
+terraform/*.tfstate.*
+terraform/tfplan
+
+# Secrets
+*.pem
+.env
+
+# Docker archives
+*.tar
+
+# Python
+__pycache__/
+*.pyc
