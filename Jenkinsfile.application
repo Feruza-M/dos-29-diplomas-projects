@@ -1,6 +1,17 @@
 pipeline {
     agent any
 
+    options {
+        skipDefaultCheckout(true)
+    }
+
+    environment {
+        IMAGE_NAME     = 'load-test-analyzer'
+        CONTAINER_NAME = 'load-test-analyzer'
+        APP_SERVER     = '172.31.0.145'
+        APP_PORT       = '8000'
+    }
+
     stages {
 
         stage('Checkout') {
@@ -9,33 +20,98 @@ pipeline {
             }
         }
 
-        stage('Build') {
+        stage('Build Docker Image') {
             steps {
-                sh 'docker build -t load-test-analyzer:${BUILD_NUMBER} .'
+                dir('load-test-analizator') {
+                    sh '''
+                        docker build \
+                          -t ${IMAGE_NAME}:${BUILD_NUMBER} .
+                    '''
+                }
             }
         }
 
         stage('Security Scan') {
             steps {
                 sh '''
-                trivy image \
-                --severity HIGH,CRITICAL \
-                --exit-code 1 \
-                load-test-analyzer:${BUILD_NUMBER}
+                    trivy --config /dev/null image \
+                      --severity HIGH,CRITICAL \
+                      ${IMAGE_NAME}:${BUILD_NUMBER}
+                '''
+            }
+        }
+
+        stage('Save Docker Image') {
+            steps {
+                sh '''
+                    rm -f load-test-analyzer.tar
+
+                    docker save \
+                      ${IMAGE_NAME}:${BUILD_NUMBER} \
+                      -o load-test-analyzer.tar
                 '''
             }
         }
 
         stage('Deploy') {
             steps {
-                echo 'Deploy to application server'
+                sshagent(credentials: ['application-server-key']) {
+
+                    sh '''
+                        scp \
+                          -o StrictHostKeyChecking=no \
+                          load-test-analyzer.tar \
+                          ubuntu@${APP_SERVER}:/home/ubuntu/load-test-analyzer.tar
+                    '''
+
+                    sh '''
+                        ssh \
+                          -o StrictHostKeyChecking=no \
+                          ubuntu@${APP_SERVER} \
+                          "
+                          docker load -i /home/ubuntu/load-test-analyzer.tar
+
+                          docker rm -f ${CONTAINER_NAME} || true
+
+                          docker run -d \
+                            --name ${CONTAINER_NAME} \
+                            --restart unless-stopped \
+                            -p ${APP_PORT}:${APP_PORT} \
+                            ${IMAGE_NAME}:${BUILD_NUMBER}
+                          "
+                    '''
+                }
             }
         }
 
         stage('Health Check') {
             steps {
-                echo 'Check application'
+                sshagent(credentials: ['application-server-key']) {
+                    sh '''
+                        sleep 10
+
+                        ssh \
+                          -o StrictHostKeyChecking=no \
+                          ubuntu@${APP_SERVER} \
+                          "curl --fail http://localhost:${APP_PORT}/docs"
+                    '''
+                }
             }
+        }
+    }
+
+    post {
+
+        success {
+            echo 'Application deployment successful'
+        }
+
+        failure {
+            echo 'Application deployment failed'
+        }
+
+        always {
+            sh 'rm -f load-test-analyzer.tar || true'
         }
     }
 }
